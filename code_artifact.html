@@ -1,0 +1,233 @@
+<!-- ... existing code ... -->
+        <!-- 로딩 표시기 -->
+        <div id="loading-spinner" class="flex flex-col items-center justify-center py-40 text-slate-500">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-4 text-primary"></i>
+            <p id="loading-text">구글 시트 데이터를 불러오는 중입니다...</p>
+        </div>
+
+    </main>
+
+    <!-- 자바스크립트 로직 -->
+    <script>
+        /**
+         * ==========================================
+         * [구글 시트 연동 설정 영역]
+         * ==========================================
+         */
+        
+        // 1. 구글 시트에서 '웹에 게시' -> 'CSV'로 생성한 링크를 아래에 붙여넣으세요.
+        // 예: const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v.../pub?output=csv';
+        const CSV_URL = ''; 
+        
+        // 2. 테스트용 더미 데이터 사용 여부 (true: 가짜 데이터 사용 / false: 구글 시트 사용)
+        const USE_MOCK_DATA = true; 
+
+        /**
+         * [구글 드라이브 이미지 연동 방법]
+         * 구글 시트의 '매장사진_목록', '이벤트사진_목록' 열에 
+         * 구글 드라이브에 업로드된 이미지 파일의 '공유 링크 고유 ID'를 쉼표(,)로 구분하여 입력하세요.
+         * (※ 파일 공유 설정: '링크가 있는 모든 사용자에게 공개' 필수)
+         * 예시 입력값: 1Q2W3E4R5T6Y, 9A8S7D6F5G4H
+         */
+        
+        // 목업(Mock) 데이터 (새로운 열 구조 반영)
+        const MOCK_DATA = [
+            {
+                "업체명": "제주 가구백화점",
+                "매장_요약": "제주도 단일 최대 규모인 600평의 인프라와 배송 강점을 지니고 있습니다. 모던, 원목, 빈티지 등 다양한 스타일을 한자리에서 볼 수 있으며, 공무원 협력업체로 등록되어 신뢰도가 높습니다. 하지만 마케팅 채널의 관리 부실 및 편차가 뚜렷하여 전반적인 채널 재정비가 필요합니다.",
+                "업데이트일": "2026. 07. 09",
+                // 테스트용 이미지 URL (실제로는 구글 드라이브 ID 입력)
+                "매장사진_목록": [
+                    "https://milanoexplorer.com/wp-content/uploads/2024/06/image-248.jpeg",
+                    "https://placehold.co/600x400/e2e8f0/475569?text=Store+View+2",
+                    "https://placehold.co/600x400/cbd5e1/334155?text=Store+View+3"
+                ],
+                "이벤트사진_목록": [
+                    "https://placehold.co/600x600/fef08a/854d0e?text=No+Interest+Installment",
+                    "https://placehold.co/600x600/bbf7d0/166534?text=Photo+Review+Event"
+                ],
+                "주요전략": [
+                    { icon: "fa-map-location-dot", title: "네이버 생태계 강화", desc: "검색 광고(파워링크)와 연계하여 네이버페이, 톡톡 기능을 적극 활용 중이며 예약 및 쿠폰 기능 도입을 검토합니다." },
+                    { icon: "fa-hashtag", title: "숏폼 콘텐츠 확장", desc: "인스타그램을 통해 최대 3.6K 조회수를 기록한 숏폼의 경험을 살려, 릴스와 네이버 클립 발행 빈도를 높입니다." },
+                    { icon: "fa-comments", title: "방치 채널 재활성화", desc: "현재 활동이 멈춘 당근마켓과 카카오채널을 복구하여 지역 밀착형 고객과의 소통 창구로 재활용합니다." }
+                ],
+                "특이사항": "1. 맘카페(제주맘 등) 및 웨딩 커뮤니티 등 핵심 타겟이 모여있는 커뮤니티 제휴가 전혀 없어 아쉬움이 남습니다.\n2. 스마트스토어를 운영 중이나 고객 리뷰 및 Q&A 관리가 방치되어 온라인 신뢰도 하락 요소로 작용 중입니다.\n3. 과거 자체 마스코트('제백이')를 활용한 마케팅을 시도했으나 기획 실패로 중단된 이력이 있습니다. 브랜드 캐릭터 재정비가 요구됩니다.",
+                "채널데이터": [
+                    { "채널명": "네이버 플레이스", "아이콘": "fa-map-location-dot", "색상": "text-blue-600", "유무": "O", "관리상태": "중", "차별점": "검색 광고(파워링크) 연계 진행<br>네이버페이 및 톡톡 기능 활용 중", "비고": "쿠폰, 예약, 클립 등 추가 노출 가능 기능 미사용" },
+                    { "채널명": "인스타그램", "아이콘": "fa-instagram", "색상": "text-pink-600", "유무": "O", "관리상태": "중", "차별점": "월 10건 내외 콘텐츠 꾸준한 업로드<br>숏폼(최대 3.6K 조회수) 운영", "비고": "자체 마스코트(제백이) 활용 기획 실패 이력 존재" },
+                    { "채널명": "네이버 블로그", "아이콘": "fa-blogger-b", "색상": "text-green-600", "유무": "O", "관리상태": "중", "차별점": "월 1회 정기 포스팅 및 기자단 활용<br>'가구 이야기', '배송 후기' 카테고리 운영", "비고": "이웃 수 347명으로 다소 부족, 소통 기능 약함" },
+                    { "채널명": "스마트스토어", "아이콘": "fa-store", "색상": "text-green-500", "유무": "O", "관리상태": "하", "차별점": "오프라인 매장 상품의 온라인 판로<br>관심 고객 137명 보유", "비고": "고객 리뷰 및 Q&A 관리가 전혀 이루어지지 않음" },
+                    { "채널명": "당근마켓", "아이콘": "fa-carrot", "색상": "text-orange-600", "유무": "O", "관리상태": "하", "차별점": "지역 밀착 기반 비즈프로필 개설", "비고": "최근 3개월간 활동 전무 (실질적 방치 상태)" },
+                    { "채널명": "카카오채널", "아이콘": "fa-comment", "색상": "text-yellow-400", "유무": "O", "관리상태": "하", "차별점": "비즈니스 채널 인증 완료", "비고": "2024년 이후 브랜드 소식 등 모든 활동 정지" },
+                    { "채널명": "지역/타겟 카페", "아이콘": "fa-users", "색상": "text-slate-500", "유무": "X", "관리상태": "무", "차별점": "운영 채널 없음", "비고": "제주맘, 웨딩 커뮤니티 등 잠재 고객 타겟 제휴 전무" }
+                ]
+            }
+        ];
+
+        let appData = [];
+        const selectEl = document.getElementById('company-select');
+        const dashboardEl = document.getElementById('dashboard-content');
+        const loadingEl = document.getElementById('loading-spinner');
+        const loadingText = document.getElementById('loading-text');
+
+        async function init() {
+            if (USE_MOCK_DATA || !CSV_URL) {
+                // 더미 데이터 사용
+                loadingText.textContent = "테스트 모드: 로컬 데이터를 불러오는 중입니다...";
+                setTimeout(() => {
+                    appData = MOCK_DATA;
+                    processDataAndRender();
+                }, 500);
+            } else {
+                // 구글 시트(CSV) 데이터 파싱 로직
+                try {
+                    loadingText.textContent = "구글 시트(CSV) 데이터를 불러오는 중입니다...";
+                    const response = await fetch(CSV_URL);
+                    if (!response.ok) throw new Error('네트워크 응답이 정상이 아닙니다.');
+                    const csvText = await response.text();
+                    appData = parseCSV(csvText);
+                    processDataAndRender();
+                } catch (error) {
+                    console.error("데이터 로드 실패:", error);
+                    loadingText.textContent = "데이터를 불러오는데 실패했습니다. 콘솔 창을 확인하세요.";
+                    loadingText.classList.add('text-rose-500');
+                    // 실패 시 임시로 모의 데이터라도 띄워줌
+                    appData = MOCK_DATA;
+                    processDataAndRender();
+                }
+            }
+
+            selectEl.addEventListener('change', (e) => {
+                if(e.target.value) renderDashboard(e.target.value);
+            });
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim());
+            const result = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                // 쉼표 안에 쉼표가 있는 경우를 처리하기 위한 간단한 정규식 분리 (따옴표 고려)
+                const currentLine = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                const obj = {};
+                
+                // 데이터 파싱 및 가공 (목업 데이터 구조로 변환)
+                const rawRow = {};
+                headers.forEach((header, index) => {
+                    let val = currentLine[index] ? currentLine[index].trim() : '';
+                    // 따옴표 제거
+                    if (val.startsWith('"') && val.endsWith('"')) {
+                        val = val.substring(1, val.length - 1);
+                    }
+                    rawRow[header] = val;
+                });
+
+                // --- 1. 기본 정보 ---
+                if (!rawRow['업체명']) continue; // 업체명이 없으면 건너뜀
+                obj['업체명'] = rawRow['업체명'];
+                obj['매장_요약'] = rawRow['매장_요약'] || '';
+                obj['업데이트일'] = rawRow['업데이트일'] || '';
+                obj['특이사항'] = rawRow['특이사항'] || '';
+
+                // --- 2. 사진 목록 (구글 드라이브 ID 리스트) ---
+                obj['매장사진_목록'] = rawRow['매장사진_목록'] ? rawRow['매장사진_목록'].split(',').map(s => s.trim()) : [];
+                obj['이벤트사진_목록'] = rawRow['이벤트사진_목록'] ? rawRow['이벤트사진_목록'].split(',').map(s => s.trim()) : [];
+
+                // --- 3. 주요 전략 (최대 3개 가정) ---
+                obj['주요전략'] = [];
+                for(let j=1; j<=3; j++) {
+                    if(rawRow[`전략${j}_제목`]) {
+                        obj['주요전략'].push({
+                            icon: "fa-lightbulb", // 기본 아이콘 설정
+                            title: rawRow[`전략${j}_제목`],
+                            desc: rawRow[`전략${j}_내용`] || ''
+                        });
+                    }
+                }
+
+                // --- 4. 채널 데이터 (SNS_ 접두어 기반) ---
+                obj['채널데이터'] = [];
+                const channelNames = ['네이버플레이스', '인스타그램', '네이버블로그', '스마트스토어', '당근마켓', '카카오채널'];
+                const channelIcons = {
+                    '네이버플레이스': 'fa-map-location-dot', '인스타그램': 'fa-instagram', '네이버블로그': 'fa-blogger-b',
+                    '스마트스토어': 'fa-store', '당근마켓': 'fa-carrot', '카카오채널': 'fa-comment'
+                };
+                const channelColors = {
+                    '네이버플레이스': 'text-blue-600', '인스타그램': 'text-pink-600', '네이버블로그': 'text-green-600',
+                    '스마트스토어': 'text-green-500', '당근마켓': 'text-orange-600', '카카오채널': 'text-yellow-400'
+                };
+
+                channelNames.forEach(cName => {
+                    // 유무 열이 존재하거나 값이 있으면 채널 데이터 추가
+                    if (rawRow[`SNS_${cName}_유무`] !== undefined) {
+                        obj['채널데이터'].push({
+                            "채널명": cName,
+                            "아이콘": channelIcons[cName] || "fa-hashtag",
+                            "색상": channelColors[cName] || "text-slate-600",
+                            "유무": rawRow[`SNS_${cName}_유무`] || 'X',
+                            "관리상태": rawRow[`SNS_${cName}_상태`] || '-',
+                            "차별점": rawRow[`SNS_${cName}_차별점`] || '',
+                            "비고": rawRow[`SNS_${cName}_비고`] || ''
+                        });
+                    }
+                });
+
+                result.push(obj);
+            }
+            return result;
+        }
+
+        function processDataAndRender() {
+            populateDropdown();
+            if(appData.length > 0) {
+                selectEl.value = appData[0].업체명;
+                renderDashboard(appData[0].업체명);
+            }
+            loadingEl.classList.add('hidden');
+            dashboardEl.classList.remove('hidden');
+            dashboardEl.classList.add('flex');
+        }
+
+        function populateDropdown() {
+<!-- ... existing code ... -->
+        function renderGallery(containerId, fileList, companyName) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            if(!fileList || fileList.length === 0 || (fileList.length === 1 && fileList[0] === '')) {
+                container.innerHTML = `<div class="col-span-full py-8 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">등록된 이미지가 없습니다.</div>`;
+                return;
+            }
+
+            fileList.forEach(fileData => {
+                // fileData가 http로 시작하면(목업 URL 등) 그대로 사용, 
+                // 그렇지 않으면 구글 드라이브 파일 ID로 간주하고 렌더링 URL 생성
+                let imgPath = fileData;
+                if (!fileData.startsWith('http')) {
+                    // 구글 드라이브 이미지를 직접 보여주기 위한 URL 포맷
+                    imgPath = `https://drive.google.com/uc?export=view&id=${fileData}`;
+                }
+                
+                const imgWrapper = document.createElement('div');
+                imgWrapper.className = "relative aspect-video bg-slate-200 rounded-lg overflow-hidden group border border-slate-100 shadow-sm";
+                
+                imgWrapper.innerHTML = `
+                    <img src="${imgPath}" alt="Gallery Image" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                `;
+                
+                // 이미지 로드 실패 시 플레이스홀더 처리
+                const imgEl = imgWrapper.querySelector('img');
+                imgEl.onerror = () => {
+                    imgEl.src = `https://placehold.co/600x400/f1f5f9/94a3b8?text=Image+Load+Error`;
+                    console.error("이미지 로드 실패:", imgPath, "(공유 설정이 '링크가 있는 모든 사용자'로 되어 있는지 확인하세요)");
+                };
+
+                container.appendChild(imgWrapper);
+            });
+        }
+
+        function renderDashboard(companyName) {
+<!-- ... existing code ... -->
